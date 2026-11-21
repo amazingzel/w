@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer"><meta name="robots" content="noindex,nofollow,noarchive">
+<link rel="icon" href="data:,"><title>Приглашение</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;min-height:100svh;display:grid;place-items:center;padding:24px;background:#fdf9f4;color:#3a2e28}
+main{max-width:28rem;padding:32px 24px;border-block:1px solid #dfcfb5;text-align:center}p{margin:0;font:1.3rem/1.5 Georgia,serif}button{margin-top:16px;padding:10px 18px;font:inherit;cursor:pointer}
+</style></head><body><main><p id="notice" role="status">Чтобы открыть приглашение, откройте ссылку, которую вам прислали в сообщении</p><button id="retry" hidden>Повторить загрузку</button></main>
+<script>
+(async () => {
+  const prefix = '/w/';
+  if (!location.pathname.startsWith(prefix)) return;
+  const token = location.pathname.slice(prefix.length).replace(/\/$/, '');
+  if (!/^[A-Za-z0-9_-]{22}$/.test(token)) return;
+  const notice = document.getElementById('notice');
+  const fallback = notice.textContent;
+  const raw = token.replace(/-/g,'+').replace(/_/g,'/');
+  const keyBytes = Uint8Array.from(atob(raw), c=>c.charCodeAt(0));
+  if (btoa(String.fromCharCode(...keyBytes)).replace(/=+$/, '')!==raw) return;
+  notice.textContent='Открываем приглашение…';
+  let packet;
+  try {
+    const response = await fetch('/w/page.bin', {referrerPolicy:'no-referrer',credentials:'omit',cache:'no-cache'});
+    if (!response.ok) throw Error();
+    packet = new Uint8Array(await response.arrayBuffer());
+  } catch {
+    notice.textContent='Не удалось загрузить приглашение. Проверьте подключение и попробуйте ещё раз.';
+    const button=document.getElementById('retry');button.hidden=false;button.onclick=()=>location.reload();return;
+  }
+  try {
+    const key = await crypto.subtle.importKey('raw',keyBytes,'AES-GCM',false,['decrypt']);
+    const plain = await crypto.subtle.decrypt({name:'AES-GCM',iv:packet.subarray(0,12)},key,packet.subarray(12));
+    const html = new TextDecoder().decode(plain);
+    document.open();document.write(html);document.close();
+  } catch { notice.textContent=fallback; }
+})();
+</script></body></html>
